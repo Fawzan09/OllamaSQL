@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OllamaSQL{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 sidebar">
+                <div class="sidebar-header">
+                    <h3><i class="fas fa-database"></i> OllamaSQL</h3>
+                </div>
+                
+                <!-- Model Settings -->
+                <div class="model-settings mb-4">
+                    <h5><i class="fas fa-cog"></i> Model Settings</h5>
+                    <form id="settingsForm" method="POST" action="{{ url_for('update_settings') }}">
+                        {% if models %}
+                        <div class="mb-3">
+                            <label for="model_name" class="form-label">LLM Model</label>
+                            <select class="form-select" id="model_name" name="model_name">
+                                {% for model in models %}
+                                <option value="{{ model }}" {% if model == session.get('model_name') %}selected{% endif %}>{{ model }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="embedding_model_name" class="form-label">Embedding Model</label>
+                            <select class="form-select" id="embedding_model_name" name="embedding_model_name">
+                                {% for model in models %}
+                                <option value="{{ model }}" {% if model == session.get('embedding_model_name') %}selected{% endif %}>{{ model }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="similarity_metric" class="form-label">Similarity Metric</label>
+                            <select class="form-select" id="similarity_metric" name="similarity_metric">
+                                <option value="cosine" {% if session.get('similarity_metric') == 'cosine' %}selected{% endif %}>Cosine</option>
+                                <option value="l2sq" {% if session.get('similarity_metric') == 'l2sq' %}selected{% endif %}>L2 Distance</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="temperature" class="form-label">Temperature</label>
+                            <input type="range" class="form-range" id="temperature" name="temperature" 
+                                   min="0" max="1" step="0.1" value="{{ session.get('temperature', 0.7) }}">
+                            <span id="temperatureValue">{{ session.get('temperature', 0.7) }}</span>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i> Ollama server not running or no models found.
+                        </div>
+                        {% endif %}
+                    </form>
+                </div>
+
+                <!-- File Upload -->
+                <div class="file-upload mb-4">
+                    <h5><i class="fas fa-upload"></i> Upload CSV Files</h5>
+                    <form id="uploadForm" method="POST" action="{{ url_for('upload_files') }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <input type="file" class="form-control" id="csv_files" name="csv_files" multiple accept=".csv">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-upload"></i> Upload
+                        </button>
+                    </form>
+                </div>
+
+                <!-- File Selection -->
+                {% if session.get('uploaded_files') %}
+                <div class="file-selection mb-4">
+                    <h5><i class="fas fa-file-csv"></i> Select File</h5>
+                    <form method="POST" action="{{ url_for('select_file') }}">
+                        <div class="mb-3">
+                            <select class="form-select" name="selected_file" onchange="this.form.submit()">
+                                <option value="">Choose a file...</option>
+                                {% for filename in session.get('uploaded_files', []) %}
+                                <option value="{{ filename }}" {% if filename == session.get('selected_df_file_name') %}selected{% endif %}>
+                                    {{ filename }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
+
+                <!-- Column Selection -->
+                {% if session.get('selected_df_columns') %}
+                <div class="column-selection mb-4">
+                    <h5><i class="fas fa-columns"></i> Select Columns for Embedding</h5>
+                    <form method="POST" action="{{ url_for('select_columns') }}">
+                        {% for column in session.get('selected_df_columns', []) %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="selected_columns" 
+                                   value="{{ column }}" id="col_{{ loop.index }}"
+                                   {% if column in session.get('selected_columns', []) %}checked{% endif %}>
+                            <label class="form-check-label" for="col_{{ loop.index }}">
+                                {{ column }}
+                            </label>
+                        </div>
+                        {% endfor %}
+                        <button type="submit" class="btn btn-secondary btn-sm mt-2">
+                            <i class="fas fa-check"></i> Update Selection
+                        </button>
+                    </form>
+                    
+                    {% if session.get('selected_columns') and not session.get('vector_indices_created') %}
+                    <form method="POST" action="{{ url_for('create_indices') }}" class="mt-3">
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="fas fa-magic"></i> Create Vector Indices
+                        </button>
+                    </form>
+                    {% elif session.get('vector_indices_created') %}
+                    <div class="alert alert-success mt-3">
+                        <i class="fas fa-check-circle"></i> Vector indices created!
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- AI Query -->
+                {% if session.get('vector_indices_created') %}
+                <div class="ai-query">
+                    <h5><i class="fas fa-brain"></i> AI Query</h5>
+                    <form method="POST" action="{{ url_for('submit_query') }}">
+                        <div class="mb-3">
+                            <textarea class="form-control" name="user_query" rows="4" 
+                                      placeholder="Enter your query for the AI agent..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Submit Query
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 main-content">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+        {% for category, message in messages %}
+        <div class="toast show" role="alert">
+            <div class="toast-header">
+                <i class="fas fa-info-circle"></i>
+                <strong class="me-auto">{{ category.title() }}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">{{ message }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/bootstrap.bundle.min.js"></script>
+    <script>
+        // Update temperature display
+        const temperatureInput = document.getElementById('temperature');
+        const temperatureValue = document.getElementById('temperatureValue');
+        
+        if (temperatureInput && temperatureValue) {
+            temperatureInput.addEventListener('input', function() {
+                temperatureValue.textContent = this.value;
+            });
+        }
+
+        // Auto-submit settings form on change
+        const settingsFormElements = document.querySelectorAll('#settingsForm select, #settingsForm input[type="range"]');
+        settingsFormElements.forEach(function(element) {
+            element.addEventListener('change', function() {
+                document.getElementById('settingsForm').submit();
+            });
+        });
+
+        // Auto-hide toasts
+        setTimeout(function() {
+            const toasts = document.querySelectorAll('.toast');
+            toasts.forEach(function(toast) {
+                if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+                    const bsToast = new bootstrap.Toast(toast);
+                    bsToast.hide();
+                }
+            });
+        }, 5000);
+    </script>
+</body>
+</html>
