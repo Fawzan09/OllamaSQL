@@ -187,11 +187,13 @@ LIMIT 5;
    ollama serve
    ```
 
-6. **Run the Application**
+6. **Run the Application (Flask UI)**
 
    ```bash
-   streamlit run app.py
+   python app.py
    ```
+
+   Then open http://localhost:8000 in your browser.
 
 ---
 
@@ -199,11 +201,11 @@ LIMIT 5;
 
 1. **Open the App**
 
-   After running `streamlit run app.py`, navigate to `http://localhost:8501` in your web browser.
+   After running `python app.py`, navigate to `http://localhost:8000` in your web browser.
 
 2. **Upload CSV Files**
 
-   - Use the sidebar to upload one or more CSV files.
+   - Use the left settings panel to upload one or more CSV files.
    - The uploaded files will appear in a list for selection.
 
 3. **Select Data and Generate Embeddings**
@@ -232,7 +234,7 @@ LIMIT 5;
 7. **Explore Data**
 
    - Use the **Data Viewer** to inspect your datasets.
-   - Switch between different uploaded files using tabs.
+   - Switch between different uploaded files using the tabs.
 
 ---
 

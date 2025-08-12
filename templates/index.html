@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="grid">
+  <aside class="card">
+    <h2>Settings</h2>
+    {% if not server_ok %}
+      <div class="flash danger">Ollama server is not running. Start it to use the AI agent.</div>
+    {% endif %}
+    <form method="post" action="{{ url_for('set_models') }}" class="stack">
+      <div>
+        <label>LLM Model</label>
+        <select name="model_name">
+          <option value="">-- select --</option>
+          {% for m in available_models %}
+            <option value="{{ m }}" {% if model_name==m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Embedding Model</label>
+        <select name="embedding_model_name">
+          <option value="">-- select --</option>
+          {% for m in available_models %}
+            <option value="{{ m }}" {% if embedding_model_name==m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Similarity Metric</label>
+        <select name="similarity_metric">
+          <option value="cosine" {% if similarity_metric=='cosine' %}selected{% endif %}>cosine</option>
+          <option value="l2sq" {% if similarity_metric=='l2sq' %}selected{% endif %}>l2sq</option>
+        </select>
+      </div>
+      <div>
+        <label>Temperature</label>
+        <input type="text" name="temperature" value="{{ '%.2f' % temperature }}" />
+      </div>
+      <div class="row">
+        <button class="btn" type="submit">Save Settings</button>
+      </div>
+    </form>
+
+    <hr style="border: none; border-top:1px solid #1a2240; margin:14px 0;" />
+
+    <h2>Upload CSVs</h2>
+    <form method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data" class="stack">
+      <input type="file" name="csv_files" multiple accept=".csv" />
+      <button class="btn secondary" type="submit">Upload</button>
+    </form>
+
+    {% if uploaded_files %}
+    <form method="post" action="{{ url_for('select_file') }}" class="stack" style="margin-top:12px;">
+      <div>
+        <label>Select File</label>
+        <select name="selected_file">
+          {% for name in uploaded_files %}
+            <option value="{{ name }}" {% if selected_file==name %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn secondary" type="submit">Use Selected</button>
+    </form>
+    {% endif %}
+
+    {% if selected_file %}
+      <form method="post" action="{{ url_for('set_columns') }}" class="stack" style="margin-top:12px;">
+        <label>Columns to Embed</label>
+        <div class="stack">
+          {% set cols = data_tabs|selectattr(0, 'equalto', selected_file)|map(attribute=1)|list %}
+          {% if cols and cols[0] is not none %}
+            {% for c in cols[0].columns %}
+              <label style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" name="selected_columns" value="{{ c }}" {% if c in selected_columns %}checked{% endif %} />
+                <span>{{ c }}</span>
+              </label>
+            {% endfor %}
+          {% else %}
+            <div class="muted">No columns available.</div>
+          {% endif %}
+        </div>
+        <button class="btn secondary" type="submit">Save Columns</button>
+      </form>
+
+      <form method="post" action="{{ url_for('route_create_index') }}" style="margin-top:10px;">
+        <button class="btn" type="submit">Create Vector Indices</button>
+      </form>
+      {% if has_index %}
+        <div class="muted" style="margin-top:6px;">Vector indices created.</div>
+      {% endif %}
+    {% endif %}
+
+  </aside>
+  <main class="card">
+    <h2>Data Viewer</h2>
+    {% if data_tabs %}
+      <div class="tabs">
+        {% for name, _ in data_tabs %}
+          <div class="tab {% if selected_file==name %}active{% endif %}">{{ name }}</div>
+        {% endfor %}
+      </div>
+      {% for name, df in data_tabs %}
+        {% if selected_file==name %}
+          <div style="overflow:auto; max-height: 320px;">
+            <table>
+              <thead>
+                <tr>
+                  {% for c in df.columns %}<th>{{ c }}</th>{% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for _, row in df.iterrows() %}
+                  <tr>
+                    {% for c in df.columns %}<td>{{ row[c] }}</td>{% endfor %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+      {% endfor %}
+    {% else %}
+      <div class="muted">Upload CSV files to get started.</div>
+    {% endif %}
+
+    <h2 style="margin-top:16px;">AI Agent Query</h2>
+    <form method="post" action="{{ url_for('query_route') }}" class="stack">
+      <textarea name="user_query" placeholder="Ask a question about your data...">{{ query_text }}</textarea>
+      <div class="row wrap">
+        <button class="btn" type="submit" {% if not has_index %}disabled{% endif %}>Submit Query</button>
+        {% if not has_index %}
+          <span class="muted">(Create vector indices first)</span>
+        {% endif %}
+      </div>
+    </form>
+
+    {% if ai_response %}
+      <h2 style="margin-top:16px;">AI Agent Response</h2>
+      {% if ai_response.sql_query %}
+        <h3>Generated SQL Query</h3>
+        <pre><code>{{ ai_response.sql_query }}</code></pre>
+        {% if ai_response.sql_results %}
+          <h3>Query Results</h3>
+          {% if ai_response.sql_results.__class__.__name__ == 'list' %}
+            <div style="overflow:auto; max-height: 320px;">
+              <table>
+                <thead>
+                  <tr>
+                    {% for k in ai_response.sql_results[0].keys() %}<th>{{ k }}</th>{% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for r in ai_response.sql_results %}
+                    <tr>
+                      {% for v in r.values() %}<td>{{ v }}</td>{% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <pre><code>{{ ai_response.sql_results }}</code></pre>
+          {% endif %}
+        {% endif %}
+      {% endif %}
+      <h3>Assistant's Analysis</h3>
+      <pre><code>{{ ai_response.analysis }}</code></pre>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}
