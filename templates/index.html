@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="main-header">
+    <h2><i class="fas fa-chart-line"></i> Data Viewer</h2>
+</div>
+
+<!-- Data Display -->
+{% if session.get('uploaded_files') %}
+<div class="data-viewer mb-4">
+    <ul class="nav nav-tabs" id="dataTab" role="tablist">
+        {% for filename in session.get('uploaded_files', []) %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if filename == session.get('selected_df_file_name') %}active{% endif %}" 
+                    id="tab-{{ loop.index }}" data-bs-toggle="tab" 
+                    data-bs-target="#content-{{ loop.index }}" type="button" role="tab">
+                {{ filename }}
+            </button>
+        </li>
+        {% endfor %}
+    </ul>
+    
+    <div class="tab-content" id="dataTabContent">
+        {% for filename in session.get('uploaded_files', []) %}
+        <div class="tab-pane fade {% if filename == session.get('selected_df_file_name') %}show active{% endif %}" 
+             id="content-{{ loop.index }}" role="tabpanel">
+            <div class="table-responsive mt-3">
+                {{ uploaded_files_data.get(filename, '')|safe }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="text-center mt-5">
+    <i class="fas fa-upload fa-3x text-muted mb-3"></i>
+    <h4 class="text-muted">No data uploaded yet</h4>
+    <p class="text-muted">Upload CSV files to get started with data analysis</p>
+</div>
+{% endif %}
+
+<!-- AI Response -->
+{% if ai_response %}
+<div class="ai-response mt-4">
+    <h3><i class="fas fa-robot"></i> AI Agent Response</h3>
+    
+    {% if ai_response.sql_query %}
+    <div class="card mb-3">
+        <div class="card-header">
+            <h5><i class="fas fa-code"></i> Generated SQL Query</h5>
+        </div>
+        <div class="card-body">
+            <pre><code class="language-sql">{{ ai_response.sql_query }}</code></pre>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if ai_response.sql_results %}
+    <div class="card mb-3">
+        <div class="card-header">
+            <h5><i class="fas fa-table"></i> Query Results</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                {{ query_results_html|safe }}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if ai_response.analysis %}
+    <div class="card">
+        <div class="card-header">
+            <h5><i class="fas fa-brain"></i> Assistant's Analysis</h5>
+        </div>
+        <div class="card-body">
+            <div class="markdown-content">
+                {{ ai_response.analysis|safe }}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Loading indicator -->
+<div id="loadingIndicator" class="text-center mt-4" style="display: none;">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2">Processing your query...</p>
+</div>
+
+<script>
+    // Show loading indicator when submitting queries
+    document.querySelectorAll('form').forEach(function(form) {
+        form.addEventListener('submit', function() {
+            if (this.action.includes('submit_query') || this.action.includes('create_indices')) {
+                document.getElementById('loadingIndicator').style.display = 'block';
+            }
+        });
+    });
+</script>
+{% endblock %}

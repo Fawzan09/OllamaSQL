@@ -1,5 +1,7 @@
-streamlit
+flask
+flask-session
 pandas
 duckdb
 ollama
 requests
+markdown
